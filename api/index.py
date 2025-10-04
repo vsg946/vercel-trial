@@ -16,23 +16,21 @@ app.add_middleware(
     expose_headers=["*"],
 )
 
-# Load the dataset once when the app starts
-DATA_FILE = Path(_file_).parent / "q-vercel-latency.json"
+# ✅ Correct path to the JSON file in /data
+DATA_FILE = Path(__file__).parent.parent / "data" / "q-vercel-latency.json"
 df = pd.read_json(DATA_FILE)
-
 
 @app.get("/")
 async def root():
     return {"message": "Vercel Latency Analytics API is running."}
 
-
-@app.post("/")  # Changed from /api/ to / to match the expected endpoint
+@app.post("/")
 async def get_latency_stats(request: Request):
     payload = await request.json()
     regions_to_process = payload.get("regions", [])
     threshold = payload.get("threshold_ms", 200)
 
-    results = []
+    results = {}
 
     for region in regions_to_process:
         region_df = df[df["region"] == region]
@@ -43,14 +41,11 @@ async def get_latency_stats(request: Request):
             avg_uptime = round(region_df["uptime_pct"].mean(), 3)
             breaches = int(region_df[region_df["latency_ms"] > threshold].shape[0])
 
-            results.append(
-                {
-                    "region": region,
-                    "avg_latency": avg_latency,
-                    "p95_latency": p95_latency,
-                    "avg_uptime": avg_uptime,
-                    "breaches": breaches,
-                }
-            )
+            results[region] = {
+                "avg_latency": avg_latency,
+                "p95_latency": p95_latency,
+                "avg_uptime": avg_uptime,
+                "breaches": breaches,
+            }
 
-    return {"regions": results}
+    return results
